@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MegaPig</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            direction: rtl;
+            text-align: center;
+            touch-action: manipulation;
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin: 10px 0;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 95%;
+            max-width: 800px;
+            height: 400px;
+            margin: 10px auto;
+            background-color: #87CEEB;
+            overflow: hidden;
+            border: 4px solid #333;
+            border-radius: 10px;
+        }
+        
+        .piggy-bank {
+            position: absolute;
+            width: 60px;
+            height: 50px;
+            background-color: pink;
+            border-radius: 30% 30% 50% 50%;
+            border: 2px solid #333;
+        }
+        
+        .piggy-bank:before {
+            content: "";
+            position: absolute;
+            right: -10px;
+            top: 10px;
+            width: 20px;
+            height: 15px;
+            background-color: pink;
+            border-radius: 50%;
+            border: 2px solid #333;
+        }
+        
+        .piggy-bank:after {
+            content: "";
+            position: absolute;
+            bottom: -5px;
+            left: 10px;
+            width: 8px;
+            height: 8px;
+            background-color: pink;
+            border-radius: 50%;
+            border: 1px solid #333;
+            box-shadow: 32px 0 0 0 pink, 32px 0 0 1px #333;
+        }
+        
+        .coin-slot {
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 15px;
+            height: 2px;
+            background-color: #333;
+        }
+        
+        #ball {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: #FFD700;
+            border-radius: 50%;
+            border: 2px solid #333;
+            z-index: 10;
+            display: block;
+        }
+        
+        #shooter {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 40px;
+            background-color: #555;
+            border-radius: 10px;
+            z-index: 5;
+        }
+        
+        #score, #level, #instructions {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 5px;
+        }
+        
+        #level-up-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 24px;
+            display: none;
+            z-index: 100;
+        }
+        
+        #mobile-controls {
+            display: flex;
+            justify-content: center;
+            margin: 10px auto;
+            max-width: 800px;
+        }
+        
+        #mobile-controls button {
+            width: 70px;
+            height: 70px;
+            margin: 0 10px;
+            font-size: 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        #shoot-btn {
+            width: 100px !important;
+            height: 100px !important;
+            font-size: 30px !important;
+            background-color: #f44336 !important;
+        }
+        
+        @media (max-width: 600px) {
+            #game-container {
+                height: 350px;
+            }
+            
+            #mobile-controls button {
+                width: 60px;
+                height: 60px;
+                font-size: 20px;
+            }
+            
+            #shoot-btn {
+                width: 80px !important;
+                height: 80px !important;
+            }
+            
+            .piggy-bank {
+                width: 50px;
+                height: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>משחק קופות החיסכון</h1>
+    <div id="score">ניקוד: 0</div>
+    <div id="level">שלב: 1</div>
+    <div id="instructions">הזז את הקלע והקש על כפתור היריה</div>
+    
+    <div id="game-container">
+        <div id="ball"></div>
+        <div id="shooter"></div>
+        <div id="level-up-message"></div>
+    </div>
+    
+    <div id="mobile-controls">
+        <button id="left-btn">◀</button>
+        <button id="shoot-btn">🔫</button>
+        <button id="right-btn">▶</button>
+    </div>
+    
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const ball = document.getElementById('ball');
+        const shooter = document.getElementById('shooter');
+        const scoreDisplay = document.getElementById('score');
+        const levelDisplay = document.getElementById('level');
+        const levelUpMessage = document.getElementById('level-up-message');
+        const leftBtn = document.getElementById('left-btn');
+        const rightBtn = document.getElementById('right-btn');
+        const shootBtn = document.getElementById('shoot-btn');
+        
+        let score = 0;
+        let level = 1;
+        let piggyBanks = [];
+        let shooterPosition = gameContainer.offsetWidth / 2;
+        let ballActive = false;
+        let ballX = 0;
+        let ballY = 0;
+        let ballSpeedX = 0;
+        let ballSpeedY = 0;
+        let piggySpeed = 1;
+        let requiredScore = 5;
+        let leftBtnInterval = null;
+        let rightBtnInterval = null;
+        
+        // פונקציות עזר לתנועת הקלע
+        function moveShooterLeft() {
+            shooterPosition = Math.max(30, shooterPosition - 5);
+            shooter.style.left = (shooterPosition - 30) + 'px';
+            
+            if (!ballActive) {
+                ballX = shooterPosition;
+                ball.style.left = ballX + 'px';
+            }
+        }
+        
+        function moveShooterRight() {
+            shooterPosition = Math.min(gameContainer.offsetWidth - 30, shooterPosition + 5);
+            shooter.style.left = (shooterPosition - 30) + 'px';
+            
+            if (!ballActive) {
+                ballX = shooterPosition;
+                ball.style.left = ballX + 'px';
+            }
+        }
+        
+        // יצירת קופות חיסכון
+        function createPiggyBanks() {
+            // מחיקת קופות קיימות
+            piggyBanks.forEach(piggy => {
+                if (piggy.element && piggy.element.parentNode) {
+                    piggy.element.parentNode.removeChild(piggy.element);
+                }
+            });
+            
+            piggyBanks = [];
+            
+            // הוספת קופות חדשות בהתאם לשלב
+            const numberOfPiggies = 3 + Math.min(level, 6); // הגבלת המספר המרבי של חזירים ל-9
+            const containerWidth = gameContainer.offsetWidth;
+            const containerHeight = gameContainer.offsetHeight;
+            
+            for (let i = 0; i < numberOfPiggies; i++) {
+                const piggyBank = document.createElement('div');
+                piggyBank.className = 'piggy-bank';
+                
+                // מיקום אקראי עבור הקופה בהתאם לגודל המסך
+                const row = Math.floor(i / 3);
+                const colsInRow = Math.min(3, numberOfPiggies - row * 3);
+                const colWidth = containerWidth / colsInRow;
+                
+                const positionY = 50 + row * 80;
+                const positionX = (i % 3) * colWidth + colWidth / 2 - 25;
+                
+                // יצירת חריץ מטבעות לקופה
+                const coinSlot = document.createElement('div');
+                coinSlot.className = 'coin-slot';
+                piggyBank.appendChild(coinSlot);
+                
+                piggyBank.style.left = positionX + 'px';
+                piggyBank.style.top = positionY + 'px';
+                
+                gameContainer.appendChild(piggyBank);
+                
+                // הוספת מידע על הקופה למערך
+                piggyBanks.push({
+                    element: piggyBank,
+                    x: positionX,
+                    y: positionY,
+                    width: parseInt(getComputedStyle(piggyBank).width),
+                    height: parseInt(getComputedStyle(piggyBank).height),
+                    direction: Math.random() > 0.5 ? 1 : -1,
+                    speed: piggySpeed * (0.8 + Math.random() * 0.4),
+                    hit: false
+                });
+            }
+        }
+        
+        // איפוס כדור ומיקומו בתוך הקלע
+        function resetBall() {
+            ballActive = false;
+            ballX = shooterPosition;
+            ballY = gameContainer.offsetHeight - 70;
+            ball.style.left = ballX + 'px';
+            ball.style.top = ballY + 'px';
+            ball.style.display = 'block';
+        }
+        
+        // עדכון מיקום הכדור
+        function updateBall() {
+            if (ballActive) {
+                ballX += ballSpeedX;
+                ballY += ballSpeedY;
+                
+                // בדיקת פגיעה בדפנות
+                if (ballX <= 0 || ballX >= gameContainer.offsetWidth - 20) {
+                    ballSpeedX = -ballSpeedX;
+                }
+                
+                if (ballY <= 0) {
+                    ballSpeedY = -ballSpeedY;
+                }
+                
+                // בדיקה אם הכדור יצא מהמסך בתחתית
+                if (ballY >= gameContainer.offsetHeight) {
+                    resetBall();
+                }
+                
+                // בדיקת פגיעה בקופות חיסכון
+                piggyBanks.forEach(piggy => {
+                    if (!piggy.hit && 
+                        ballX + 20 >= piggy.x && 
+                        ballX <= piggy.x + piggy.width && 
+                        ballY + 20 >= piggy.y && 
+                        ballY <= piggy.y + piggy.height) {
+                        
+                        // פגיעה בקופה!
+                        piggy.hit = true;
+                        piggy.element.style.opacity = '0.3';
+                        
+                        // הוספת ניקוד
+                        score += level;
+                        scoreDisplay.textContent = `ניקוד: ${score}`;
+                        
+                        // שינוי כיוון הכדור
+                        ballSpeedY = -ballSpeedY;
+                        
+                        // בדיקה אם השלב הושלם
+                        checkLevelCompletion();
+                    }
+                });
+                
+                // עדכון מיקום הכדור
+                ball.style.left = ballX + 'px';
+                ball.style.top = ballY + 'px';
+            }
+        }
+        
+        // עדכון מיקום הקופות
+        function updatePiggyBanks() {
+            const containerWidth = gameContainer.offsetWidth;
+            
+            piggyBanks.forEach(piggy => {
+                if (!piggy.hit) {
+                    // תנועה מצד לצד
+                    piggy.x += piggy.direction * piggy.speed;
+                    
+                    // שינוי כיוון אם הגיע לקצה
+                    if (piggy.x <= 0 || piggy.x >= containerWidth - piggy.width) {
+                        piggy.direction = -piggy.direction;
+                    }
+                    
+                    piggy.element.style.left = piggy.x + 'px';
+                }
+            });
+        }
+        
+        // בדיקה אם השלב הושלם
+        function checkLevelCompletion() {
+            const allHit = piggyBanks.every(piggy => piggy.hit);
+            
+            if (allHit) {
+                if (score >= requiredScore) {
+                    // עלייה לשלב הבא
+                    level++;
+                    levelDisplay.textContent = `שלב: ${level}`;
+                    requiredScore = level * 5;
+                    piggySpeed += 0.2;
+                    
+                    // הצגת הודעת עלייה לשלב הבא
+                    levelUpMessage.textContent = `עלית לשלב ${level}!`;
+                    levelUpMessage.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        levelUpMessage.style.display = 'none';
+                        createPiggyBanks();
+                        resetBall();
+                    }, 2000);
+                } else {
+                    // לא מספיק ניקוד לעלות שלב
+                    levelUpMessage.textContent = `השלב הושלם, אך נדרשים ${requiredScore} נקודות כדי לעלות לשלב הבא`;
+                    levelUpMessage.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        levelUpMessage.style.display = 'none';
+                        createPiggyBanks();
+                        resetBall();
+                    }, 3000);
+                }
+            }
+        }
+        
+        // ירי הכדור
+        function shootBall() {
+            if (!ballActive) {
+                ballActive = true;
+                ballSpeedX = (Math.random() * 2 - 1) * 4; // מהירות אופקית אקראית
+                ballSpeedY = -6; // מהירות אנכית קבועה כלפי מעלה
+            }
+        }
+        
+        // הוספת מאזינים לכפתורי שליטה
+        leftBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            if (leftBtnInterval) clearInterval(leftBtnInterval);
+            leftBtnInterval = setInterval(moveShooterLeft, 30);
+        });
+        
+        leftBtn.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            clearInterval(leftBtnInterval);
+        });
+        
+        rightBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            if (rightBtnInterval) clearInterval(rightBtnInterval);
+            rightBtnInterval = setInterval(moveShooterRight, 30);
+        });
+        
+        rightBtn.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            clearInterval(rightBtnInterval);
+        });
+        
+        shootBtn.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            shootBall();
+        });
+        
+        // הוספת מאזינים להקשות מקלדת למחשב
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft') {
+                if (!leftBtnInterval) leftBtnInterval = setInterval(moveShooterLeft, 30);
+            } else if (e.key === 'ArrowRight') {
+                if (!rightBtnInterval) rightBtnInterval = setInterval(moveShooterRight, 30);
+            } else if (e.key === ' ') {
+                shootBall();
+            }
+        });
+        
+        document.addEventListener('keyup', function(e) {
+            if (e.key === 'ArrowLeft') {
+                clearInterval(leftBtnInterval);
+                leftBtnInterval = null;
+            } else if (e.key === 'ArrowRight') {
+                clearInterval(rightBtnInterval);
+                rightBtnInterval = null;
+            }
+        });
+        
+        // עבור מחשבים, הוספת מאזינים ללחיצות עכבר
+        leftBtn.addEventListener('mousedown', function(e) {
+            if (leftBtnInterval) clearInterval(leftBtnInterval);
+            leftBtnInterval = setInterval(moveShooterLeft, 30);
+        });
+        
+        leftBtn.addEventListener('mouseup', function() {
+            clearInterval(leftBtnInterval);
+        });
+        
+        leftBtn.addEventListener('mouseleave', function() {
+            clearInterval(leftBtnInterval);
+        });
+        
+        rightBtn.addEventListener('mousedown', function(e) {
+            if (rightBtnInterval) clearInterval(rightBtnInterval);
+            rightBtnInterval = setInterval(moveShooterRight, 30);
+        });
+        
+        rightBtn.addEventListener('mouseup', function() {
+            clearInterval(rightBtnInterval);
+        });
+        
+        rightBtn.addEventListener('mouseleave', function() {
+            clearInterval(rightBtnInterval);
+        });
+        
+        shootBtn.addEventListener('click', function() {
+            shootBall();
+        });
+        
+        // אתחול מיקום הקלע ולולאת המשחק
+        function initGame() {
+            // התאמת מיקום הקלע
+            shooterPosition = gameContainer.offsetWidth / 2;
+            shooter.style.left = (shooterPosition - 30) + 'px';
+            
+            createPiggyBanks();
+            resetBall();
+            
+            // לולאת המשחק
+            function gameLoop() {
+                updateBall();
+                updatePiggyBanks();
+                requestAnimationFrame(gameLoop);
+            }
+            
+            gameLoop();
+        }
+        
+        // התחלת המשחק כשכל התוכן נטען
+        window.addEventListener('load', initGame);
+        
+        // עדכון המשחק בעת שינוי גודל המסך
+        window.addEventListener('resize', function() {
+            // מיקום מחדש של הקלע
+            shooterPosition = Math.min(shooterPosition, gameContainer.offsetWidth - 30);
+            shooter.style.left = (shooterPosition - 30) + 'px';
+            
+            // עדכון מיקום קופות חיסכון
+            createPiggyBanks();
+            
+            // איפוס הכדור
+            resetBall();
+        });
+    </script>
+</body>
+</html>
